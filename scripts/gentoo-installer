@@ -150,12 +150,7 @@ sub main {
     print "[+] setting up disks\n";
     disk_setup($opts{d});
 
-    # 3. Install some useful tools.
-    print "[+] installing tools\n";
-    shell_or_die("emerge -av mg gnupg2",
-		 "failed to install tools");
-
-    # 4. Unpack stage3
+    # 3. Unpack stage3
     if (defined($opts{3}) && $opts{3}) {
 	print "[+] unpacking stage3\n";
 	my @stage3 = <"/mnt/livecd/stage3*hardened*.tar.bz2">;
