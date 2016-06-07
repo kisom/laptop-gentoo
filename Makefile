@@ -133,9 +133,9 @@ HYBRIDBIN :=	isohdpfx.bin
 # the target should echo the command being run beforehand.
 #
 # The targets are divided into two stages: those relating to building
-# the ISO itself, and those relating to building the initramfs.
+# the ISO itself, and those relating to building the live CD rootfs.
 
-# Default action is to build the initramfs and build the iso.
+# Default action is to build the rootfs and build the iso.
 .PHONY: all
 all: build-rootfs build-iso
 
@@ -145,7 +145,7 @@ show-%: ; @echo $*=$($*)
 clean-file-%: ; ( [ ! -z "$*" -a -e "$*" ] && rm -f "$*" )
 clean-dir-%: ; ( [ ! -z "$*" -a -d "$*" ] && rm -fr "$*" )
 
-# make sure the originals are okay
+# fetch upstreams and make sure the originals are okay
 upstream/$(UPSTREAM_ISO) upstream/$(STAGE3):
 	curl -L $(UPSTREAM_URL)/upstream.tbz | tar xjf
 
@@ -271,33 +271,8 @@ install:
 	fi
 	sudo dd if=$(OUTPUT_ISO) of=$(DEV) $(DDFLAGS)
 
-# This is a shortcut to preserve my changes to the boot configuration
-# (e.g. syslinux.cfg).
-#.PHONY: boot-diff
-#boot-diff: $(BPATCHFILE)
-#$(BPATCHFILE): $(RELEASE)
-# 	if [ -d $(ISODIR) ];						\
-# 	then								\
-# 		diff -rupN $(RELEASE)/ $(ISODIR)/ | tee $(BPATCHFILE);	\
-# 	else								\
-# 		echo "[!] ISO directory not present";			\
-# 	fi
-# 
-#.PHONY: boot-patch
-#boot-patch: $(PATCHDIR)/$(BPATCHFILE)
-# 	if [ -s $(PATCHDIR)/$(BPATCHFILE) ];				\
-# 	then								\
-# 		cd $(ISODIR);						\
-# 		if patch --dry-run --forward -p1 -r-i 		\
-# 			../$(PATCHDIR)/$(BPATCHFILE) ;			\
-# 		then							\
-# 			patch -r-p1 < ../$(PATCHDIR)/$(BPATCHFILE);	\
-# 		fi ;							\
-# 	else								\
-# 		echo "[!] no $(BPATCHFILE) present" ;			\
-# 	fi
 
-
+#-----------------------------------------------------------------------
 #	    ____   ___	_   _	_    ____  _   _ _____ ____  
 #	   / ___| / _ \| | | | / \  / ___|| | | |  ___/ ___| 
 #	   \___ \| | | | | | |/ _ \ \___ \| |_| | |_  \___ \
@@ -307,17 +282,20 @@ install:
 
 $(UPSTREAM_SQUASHFS): $(RELEASE)
 
+# Unpack the upstream's root filesystem.
 .PHONY: upstream-rootfs
 rootfs: $(UPSTREAM_ROOTFS)
 $(UPSTREAM_ROOTFS): $(UPSTREAM_SQUASHFS)
 	sudo unsquashfs -d $@ $(UPSTREAM_SQUASHFS)
 
+# The working rootfs is initially just a copy of the upstream rootfs.
 .PHONY: working-rootfs
 working-rootfs: $(WORKING_ROOTFS)
 $(WORKING_ROOTFS): $(UPSTREAM_ROOTFS)
 	[ ! -d "$@" ] && mkdir $@
 	sudo rsync -auq $(UPSTREAM_ROOTFS)/ $@/
 
+# It's useful to have all the firmwares available.
 LINUX_FIRMWARE :=	https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git
 .PHONY: firmware
 firmware: upstream/linux-firmware.tbz
@@ -327,7 +305,8 @@ upstream/linux-firmware.tbz:
 	tar cjf $@ linux-firmware   &&					\
 	rm -rf linux-firmware
 
-
+# Building the rootfs involves copying over the firmware, stage3
+# tarball, and install script.
 .PHONY: build-rootfs
 build-rootfs: $(WORKING_SQUASHFS)
 $(WORKING_SQUASHFS): $(WORKING) working-rootfs firmware
@@ -344,6 +323,7 @@ $(WORKING_SQUASHFS): $(WORKING) working-rootfs firmware
 	sudo chown $(WHOAMI):$(WHOAMI) $(WORKING_SQUASHFS)
 
 
+#=======================================================================
 # _____ _       _____ ___ _   _ 
 # | ____| |     |  ___|_ _| \ | |
 # |  _| | |     | |_   | ||  \| |
