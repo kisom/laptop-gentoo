@@ -3,3 +3,68 @@
 set -eu
 set -o pipefail
 
+die () {
+    echo "[!] $1" > /dev/stderr
+    exit 1
+}
+
+setup () {
+    # Set up portage.
+
+    echo '[+] selecting mirrors'
+    mirrorselect -i -o >> /mnt/gentoo/etc/portage/make.conf
+
+    echo '[+] setting up portage repos'
+    mkdir /mnt/gentoo/etc/portage/repos.conf
+    cp /mnt/gentoo/usr/share/portage/config/repos.conf /mnt/gentoo/etc/portage/repos.conf/gentoo.conf
+
+    echo '[+] stealing files from the live CD'
+    cp -L /etc/resolv.conf /mnt/gentoo/etc/
+    mount -t proc proc /mnt/gentoo/proc
+    mount --rbind /sys /mnt/gentoo/sys
+    mount --make-rslave /mnt/gentoo/sys
+    mount --rbind /dev /mnt/gentoo/dev
+    mount --make-rslave /mnt/gentoo/dev
+}
+
+eselect_find () {
+    module="$1"
+    target="$2"
+    retvar="$3"
+    [ -z "$module" -o -z "$target" ] &&
+	die "invalid eselect find: module=$module target=$target"
+    local n=$(eselect $1 list | grep "$target" | sed -e "s/\[\([0-9]\+\)\]/\1/")
+    eval $3="'$n'"
+}
+
+main () {
+    # The live CD isn't mounted in the chroot env. If it's mounted, we're
+    # still in the live CD environment and need to do some initial setup.
+    [ -d /mnt/livecd ] && setup && chroot /mnt/gentoo ${0#/mnt/gentoo}
+    
+    emerge-webrsync
+
+    # make sure the profile is right
+    eselect_find profile 'hardened/linux/amd64[^/]' hardened_profile
+    eselect profile set $hardened_profile
+
+    # and update the world
+    emerge --ask --update --deep --newuse @world
+
+    # the default USE flags are probably okay for now; if needed, the
+    # rootfs should set this differently
+
+    # set up locales
+    echo "America/Los_Angeles" > /etc/timezone
+    emerge --config sys-libs/timezone-data
+    
+    echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && locale-gen
+
+    eselect_find locale en_US.utf8 locale_profile
+    eselect locale set $locale_profile
+    env-update
+
+    # time to set up the kernel
+    emerge -av sys-apps/pciutils sys-kernel/hardened-sources
+    
+}

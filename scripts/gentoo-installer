@@ -168,6 +168,14 @@ sub main {
 		     "failed to unpack stage3");
     }
 
+    # 4. Time to run the post-installer.
+    print "[+] finalising base system\n";
+    shell_or_die("cp /mnt/livecd/gentoo-postinstall /mnt/gentoo/usr/bin/gentoo-postinstall",
+		 "failed to copy post-install script");
+    shell_or_die("/mnt/gentoo/usr/bin/gentoo-postinstall",
+		 "post-installer failed");
+
+
     # TODO:
     # + mount the GnuPG keyring files
     # + decrypt the base file system (which would let me skip the
