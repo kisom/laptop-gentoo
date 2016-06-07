@@ -1,0 +1,15 @@
+Before this is done, the following is needed:
+
+[ ] Bootable ISO with hardened stage3.
+[ ] Minimal post-installation rootfs with Salt.
+    + The Salt config doesn't need to be here; it'll come from restoration media.
+[ ] Installer. This should
+    + Do pre-installation set up. If this is not tenable with a shell script
+      (i.e., don't rely on a bunch $n vars), write it in Go and static-build it.
+    + Set up FDE.
+    + Unpack the rootfs.
+    + Do any post-installation automation; same caveat as pre-install.
+    + Reboot.
+
+    If the installer is best done as an actual program and not a pile
+    of shell hacks, so be it.

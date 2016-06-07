@@ -1,0 +1,22 @@
+#!/usr/bin/env perl
+use strict;
+
+my $DEFAULT_ISOFILE = "upstream/install-amd64-minimal-20160526.iso";
+my $DEFAULT_MOUNT = "/mnt";
+
+my $LOOPDEV = `losetup -f`;
+length $LOOPDEV // 0 or die "[!] no loop device could be found";
+chomp($LOOPDEV);
+
+my $ISOFILE = @ARGV[0] || $DEFAULT_ISOFILE;
+my $MOUNT = @ARGV[1] || $DEFAULT_MOUNT;
+
+print "[+] attempting to mount $ISOFILE at $MOUNT using loopback device $LOOPDEV\n";
+shell_or_die("sudo losetup $LOOPDEV $ISOFILE", "failed to attach $ISOFILE to $LOOPDEV");
+shell_or_die("sudo mount $LOOPDEV $MOUNT", "failed to mount ISO.");
+
+sub shell_or_die {
+    my ($cmd, $eulogy) = @_;
+    printf("\t\$ $cmd\n");
+    system("$cmd") && die "[!] $eulogy";
+}

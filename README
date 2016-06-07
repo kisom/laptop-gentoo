@@ -1,0 +1,13 @@
+laptop-gentoo
+=============
+
+This is a set of configurations for building a quick-restore Gentoo
+CD. Basically, I don't want to have to do the whole install dance
+every time I want to install, so this is a fast track. It originated
+from a similar effort to make Alpine Linux suitable, so there may
+still be comments about Alpine lurking.
+
+Sage internet advice: don't read the comments, particularly if you
+have Opinions on things.
+
+For the current status, see RELEASE.

@@ -1,0 +1,38 @@
+#!/bin/sh
+
+gensquashfs () {
+	echo "[+] generating squashfs image"
+	SQUASHFS="${RELEASE}.squashfs"
+	if [ -e "${SQUASHFS}" ]
+	then
+		echo "[+] removing existing squashfs image"
+		rm "${SQUASHFS}"
+	fi
+	mksquashfs iso/ "${SQUASHFS}"
+}
+
+RELEASE="$(cat iso/.alpine-release | awk '{print $1}')"
+if [ -z "$RELEASE" ]
+then
+	echo "[!] Alpine release could not be determined."
+	exit 1
+fi
+ISOFILE="${RELEASE}-custom.iso"
+
+echo "[+] building custom release for ${RELEASE}"
+echo "[+] generating hybrid-iso"
+
+xorriso -as mkisofs -r -J -joliet-long -l -v -v			\
+ 	-A "alpine-${RELEASE}-amd64"				\
+	-isohybrid-mbr iso/boot/syslinux/isohdpfx.bin		\
+	-partition_offset 16					\
+	-b boot/syslinux/isolinux.bin				\
+	-c boot/syslinux/boot.cat				\
+ 	-no-emul-boot -boot-load-size 4 -boot-info-table 	\
+	-o "${ISOFILE}" iso
+
+if [ ! -z "$1" ]
+then
+	DEVICE="$1"
+	sudo dd if="${ISOFILE}" of="${DEVICE}" bs=256M
+fi

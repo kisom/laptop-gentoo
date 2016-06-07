@@ -1,0 +1,50 @@
+#!/usr/bin/env perl
+#
+# unpacks the Alpine^wGentoo ISO from upstream. Written in Perl:
+# oderint, dum metuant.
+
+use strict;
+
+my $RELEASE =	"20160526";
+my $ISO =	"install-amd64-minimal-$RELEASE.iso";
+my $STAGE3 =	"stage3-amd64-hardened-$RELEASE.tar.bz2";
+
+# Verify the integritahs.
+shell_or_die("sha256sum -c upstream/$ISO.SHA256 1>/dev/null",
+	     "corrupt upstream ISO (SHA256 mismatch)");
+shell_or_die("sha256sum -c upstream/$STAGE3.SHA256 1>/dev/null",
+	     "corrupt upstream stage3 (SHA256 mismatch)");
+
+# this module may already be loaded; this is a NOP if it is.
+printf "[+] inserting loop module\n";
+shell_or_die("sudo modprobe loop", "modprobe failed");
+
+printf "[+] mounting loop device\n";
+my $LOOPDEV =	`losetup -f`;
+length $LOOPDEV // 0 or die "[!] no loop device could be found";
+chomp($LOOPDEV);
+printf "\tloop device: $LOOPDEV\n";
+
+printf "[+] attaching ISO to loop device\n";
+shell_or_die("sudo losetup $LOOPDEV upstream/$ISO",
+	     "failed to attach loopback device $LOOPDEV from upstream/$ISO");
+
+printf "[+] mounting loop device\n";
+shell_or_die("sudo mount -t iso9660 $LOOPDEV /mnt",
+	     "mounting the loop device failed");
+
+printf "[+] transferring files\n";
+shell_or_die("rsync -auqz /mnt/ ${RELEASE}",
+	     "transfer failed");
+
+printf "[+] unmounting iso\n";
+shell_or_die("sudo umount /mnt", "failed to unmount loop device");
+shell_or_die("sudo losetup -d $LOOPDEV", "failed to detach loop device");
+
+printf "OK\n";
+
+sub shell_or_die {
+    my ($cmd, $eulogy) = @_;
+    printf("\t\$ $cmd\n");
+    system("$cmd") && die "[!] $eulogy";
+}
