@@ -146,8 +146,8 @@ clean-file-%: ; ( [ ! -z "$*" -a -e "$*" ] && rm -f "$*" )
 clean-dir-%: ; ( [ ! -z "$*" -a -d "$*" ] && rm -fr "$*" )
 
 # fetch upstreams and make sure the originals are okay
-upstream/$(UPSTREAM_ISO) upstream/$(STAGE3):
-	curl -L $(UPSTREAM_URL)/upstream.tbz | tar xjf
+upstream/$(UPSTREAM_ISO):
+	curl -L $(UPSTREAM_URL)/upstream.tbz | tar xjf -
 
 .PHONY: integrity-check
 integrity-check: upstream/$(UPSTREAM_ISO) upstream/$(STAGE3)
@@ -165,7 +165,7 @@ clean: clean-working
 dist-clean: clean-working clean-upstream
 	rm -f upstream/$(UPSTREAM_ISO)
 	rm -f upstream/$(STAGE3)
-	rm -f upstream/linux-firmware.tbz
+	rm -f upstream/linux-firmware.tar.bz2
 
 clean-upstream:
 	-sudo rm -r $(UPSTREAM_ROOTFS)
@@ -178,7 +178,7 @@ clean-working:
 
 # The release directory is unpacked with the provided script, which is
 # better than sticking a bunch of stuff in the Makefile.
-$(RELEASE):
+$(RELEASE): upstream/$(UPSTREAM_ISO)
 	scripts/unpack-iso
 
 $(WORKING): $(RELEASE)
@@ -298,8 +298,8 @@ $(WORKING_ROOTFS): $(UPSTREAM_ROOTFS)
 # It's useful to have all the firmwares available.
 LINUX_FIRMWARE :=	https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git
 .PHONY: firmware
-firmware: upstream/linux-firmware.tbz
-upstream/linux-firmware.tbz:
+firmware: upstream/linux-firmware.tar.bz2
+upstream/linux-firmware.tar.bz2:
 	git clone $(LINUX_FIRMWARE) && 					\
 	rm -rf linux-firmware/.git* &&					\
 	tar cjf $@ linux-firmware   &&					\
@@ -315,9 +315,10 @@ $(WORKING_SQUASHFS): $(WORKING) working-rootfs firmware
 	do								\
 		sudo patch -r -p1 < ../$(PATCHDIR)/$$patchfile ;	\
 	done
-	sudo cp upstream/linux-firmware.tbz $(WORKING_ROOTFS)/
+	sudo cp upstream/linux-firmware.tar.bz2 $(WORKING_ROOTFS)/
 	sudo cp scripts/gentoo-installer $(WORKING_ROOTFS)/
-	sudo chmod +x $(WORKING_ROOTFS)/gentoo-installer
+	sudo cp scripts/gentoo-postinstall $(WORKING_ROOTFS)/
+	sudo chmod +x $(WORKING_ROOTFS)/gentoo-*inst*
 	[ -e $(WORKING_SQUASHFS) ] && sudo rm -f $(WORKING_SQUASHFS) || true
 	sudo mksquashfs $(WORKING_ROOTFS) $(WORKING_SQUASHFS)
 	sudo chown $(WHOAMI):$(WHOAMI) $(WORKING_SQUASHFS)

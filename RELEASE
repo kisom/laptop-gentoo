@@ -3,6 +3,8 @@ Before this is done, the following is needed:
 [X] Bootable ISO with hardened stage3.
 [ ] Minimal post-installation rootfs with Salt.
     + The Salt config doesn't need to be here; it'll come from restoration media.
+    + This will need to be akin to a stage3 tarball --- the default
+      installer doesn't ship with the squashfs tools.
 [ ] Installer. This should
     + Do pre-installation set up. If this is not tenable with a shell script
       (i.e., don't rely on a bunch $n vars), write it in Go and static-build it.

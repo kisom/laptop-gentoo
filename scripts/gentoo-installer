@@ -7,9 +7,13 @@ use Getopt::Std;
 # possible. For reference, see
 #   https://wiki.gentoo.org/wiki/Handbook:AMD64/
 
+#     getopts('3d:i:ns:w', \%opts);
 # Options:
+#   -3			unpack the stage3 hardened tarball
 #   -d device		specify the root disk
 #   -i interface	specify the network interface
+#   -n			network is already setup
+#   -s
 #   -w			interface is wireless
 
 # run a shell command; if it exits with a non-zero status, print the
@@ -134,7 +138,7 @@ sub setup_network {
 
 sub main {
     my %opts = {};
-    getopts('3d:i:nw', \%opts);
+    getopts('3d:i:ns:w', \%opts);
 
 
     # 1. Set up networking.
@@ -150,8 +154,12 @@ sub main {
     print "[+] setting up disks\n";
     disk_setup($opts{d});
 
-    # 3. Unpack stage3
-    if (defined($opts{3}) && $opts{3}) {
+    # 3. Unpack stage3 or rootfs
+    if (defined($opts{s}) && length $opts{s}) {
+	print "[+] unpacking rootfs\n";
+	shell_or_die("tar xvjpf $opts{s} --xattrs -C /mnt/gentoo",
+		     "failed to unpack rootfs");
+    } elsif (defined($opts{3}) && $opts{3}) {
 	print "[+] unpacking stage3\n";
 	my @stage3 = <"/mnt/livecd/stage3*hardened*.tar.bz2">;
 	length @stage3 || die "[!] couldn't find a suitable stage3";

@@ -34,7 +34,7 @@ shell_or_die("sudo mount -t iso9660 $LOOPDEV /mnt",
 	     "mounting the loop device failed");
 
 printf "[+] transferring files\n";
-shell_or_die("rsync -auqz /mnt/ ${RELEASE}",
+shell_or_die("rsync -auq /mnt/ ${RELEASE}",
 	     "transfer failed");
 
 printf "[+] unmounting iso\n";

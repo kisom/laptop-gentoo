@@ -1,0 +1,9 @@
+20160526
+*.iso
+*-rootfs/
+gentoo/
+*.sfs
+*.img
+*.squashfs
+*.tbz
+*.tar.bz2
