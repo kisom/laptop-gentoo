@@ -1,6 +1,6 @@
 Before this is done, the following is needed:
 
-[ ] Bootable ISO with hardened stage3.
+[X] Bootable ISO with hardened stage3.
 [ ] Minimal post-installation rootfs with Salt.
     + The Salt config doesn't need to be here; it'll come from restoration media.
 [ ] Installer. This should
