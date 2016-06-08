@@ -319,6 +319,7 @@ $(WORKING_SQUASHFS): $(WORKING) working-rootfs firmware
 	sudo cp scripts/gentoo-installer $(WORKING_ROOTFS)/
 	sudo cp scripts/gentoo-postinstall $(WORKING_ROOTFS)/
 	sudo chmod +x $(WORKING_ROOTFS)/gentoo-*inst*
+	sudo cp conf/Kconfig $(WORKING_ROOTFS)/
 	[ -e $(WORKING_SQUASHFS) ] && sudo rm -f $(WORKING_SQUASHFS) || true
 	sudo mksquashfs $(WORKING_ROOTFS) $(WORKING_SQUASHFS)
 	sudo chown $(WHOAMI):$(WHOAMI) $(WORKING_SQUASHFS)

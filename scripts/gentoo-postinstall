@@ -8,9 +8,18 @@ die () {
     exit 1
 }
 
-setup () {
-    # Set up portage.
+disk_uuid () {
+	mntloc=" $1 "
+	expvar="$2"
 
+	local mntln="$(mount | grep "$mntloc" | awk '{print $1}')"
+	mntln="$(blkid | grep $mntln | sed -e 's/.*UUID=\"\([a-f0-9-]\+\)\".*/\1/')"
+	eval $expvar="'$mntln'"
+}
+
+setup () {
+    # Set up portage and add host mounts.
+    
     echo '[+] selecting mirrors'
     mirrorselect -i -o >> /mnt/gentoo/etc/portage/make.conf
 
@@ -25,6 +34,8 @@ setup () {
     mount --make-rslave /mnt/gentoo/sys
     mount --rbind /dev /mnt/gentoo/dev
     mount --make-rslave /mnt/gentoo/dev
+
+    [ -s /mnt/livecd/Kconfig ] && cp /mnt/livecd/Kconfig /mnt/gentoo/root/Kconfig
 }
 
 eselect_find () {
@@ -65,6 +76,43 @@ main () {
     env-update
 
     # time to set up the kernel
-    emerge -av sys-apps/pciutils sys-kernel/hardened-sources
+    KERN_SOURCE="/usr/src/linux"
+    emerge -av sys-kernel/hardened-sources sys-kernel/genkernel
+    cd $KERN_SOURCE
+    if [ -s /root/Kconfig ]
+    then
+	cp /root/Kconfig .
+    else
+	make menuconfig
+    fi
+
+    make && make modules_install && make install
+
+    echo '[+] building initramfs'
+    genkernel --install --luks --lvm initramfs
+
+    # certain tools *have* to be part of the base image.
+    emerge -av sys-apps/paxctl sys-fs/cryptsetup sys-kernel/linux-firmware
+
+    disk_find / root_dev
+    disk_find /var var_dev
+    disk_find swap swap_dev
+    disk_find /boot boot_dev
+
+    cat <<EOF > /etc/fstab
+# <file system> <mount point>   <type>  <options>       <dump>  <pass>
+$rootdev	/	ext4	defaults	0	1
+$vardev		/var	ext4	defaults	0	1
+$bootdev	/boot	ext3	defaults	0	1
+$swapdev	none	swap	sw		1	1
+
+EOF
+
+
+    echo '[+] configuration setup'
+    [ ! -d /etc/conf.d ] && mkdir /etc/conf.d
+    read -p 'Hostname? ' NEWHOST
+    echo "hostname=\"$NEWHOST\"" > /etc/conf.d/hostname
+
     
 }
