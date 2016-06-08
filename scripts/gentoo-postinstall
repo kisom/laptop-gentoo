@@ -35,7 +35,7 @@ setup () {
     mount --rbind /dev /mnt/gentoo/dev
     mount --make-rslave /mnt/gentoo/dev
 
-    [ -s /mnt/livecd/Kconfig ] && cp /mnt/livecd/Kconfig /mnt/gentoo/root/Kconfig
+    [ -s /mnt/livecd/kconfig ] && cp /mnt/livecd/kconfig /mnt/gentoo/root/kconfig
 }
 
 eselect_find () {
@@ -52,11 +52,11 @@ eselect_find () {
 build_kernel () {
    # time to set up the kernel
     KERN_SOURCE="/usr/src/linux"
-    emerge -av sys-kernel/hardened-sources sys-kernel/genkernel
+    emerge -v sys-kernel/hardened-sources sys-kernel/genkernel
     cd $KERN_SOURCE
-    if [ -s /root/Kconfig ]
+    if [ -s /root/kconfig ]
     then
-	cp /root/Kconfig .
+	cp /root/kconfig /usr/src/linux/.config
     else
 	make menuconfig
     fi
@@ -70,20 +70,20 @@ build_kernel () {
 # install tools into a stage3 install
 install_tools () {
     # certain tools *have* to be part of the base image.    
-    emerge -av sys-apps/paxctl sys-fs/cryptsetup sys-kernel/linux-firmware
+    emerge -v sys-apps/paxctl sys-fs/cryptsetup sys-kernel/linux-firmware
 
-    emerge -av app-admin/syslogkd sys-process/cronie
+    emerge -v app-admin/syslogkd sys-process/cronie
     rc-update add sysklogd default
     rc-update add cronie default
 
-    emerge -av sys-fs/e2fsprogs
+    emerge -v sys-fs/e2fsprogs
 
     # network tools
-    emerge -av net-misc/dhcpcd net-firewall/ufw net-wireless/wpa_supplicant \
+    emerge -v net-misc/dhcpcd net-firewall/ufw net-wireless/wpa_supplicant \
 	   net-wireless/wicd
     ufw enable
 
-    emerge -av sys-boot/grub2
+    emerge -v sys-boot/grub2
 }
 
 main () {
@@ -101,7 +101,8 @@ main () {
     eselect profile set $hardened_profile
 
     # and update the world
-    nano /etc/portage/make.conf
+    sed -i -e 's/^USE="\(.\+\)"$/USE="\1 hardened ncurses cryptsetup"/'	\
+	/etc/portage/make.conf
     emerge --ask --update --deep --newuse @world
 
     # set up locales
@@ -115,12 +116,11 @@ main () {
     env-update
 
     [ "$inst_type" = "stage3" ] && build_kernel && install_tools
-    install_bootloader
 
-    disk_find / root_dev
-    disk_find /var var_dev
-    disk_find swap swap_dev
-    disk_find /boot boot_dev
+    disk_uuid / root_dev
+    disk_uuid /var var_dev
+    disk_uuid swap swap_dev
+    disk_uuid /boot boot_dev
 
     cat <<EOF > /etc/fstab
 # <file system> <mount point>   <type>  <options>       <dump>  <pass>

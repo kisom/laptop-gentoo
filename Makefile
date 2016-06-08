@@ -316,10 +316,11 @@ $(WORKING_SQUASHFS): $(WORKING) working-rootfs firmware
 		sudo patch -r -p1 < ../$(PATCHDIR)/$$patchfile ;	\
 	done
 	sudo cp upstream/linux-firmware.tar.bz2 $(WORKING_ROOTFS)/
+	sudo xz -cdk upstream/haveged.xz > $(WORKING_ROOTFS)/haveged
 	sudo cp scripts/gentoo-installer $(WORKING_ROOTFS)/
 	sudo cp scripts/gentoo-postinstall $(WORKING_ROOTFS)/
-	sudo chmod +x $(WORKING_ROOTFS)/gentoo-*inst*
-	sudo cp conf/Kconfig $(WORKING_ROOTFS)/
+	sudo chmod +x $(WORKING_ROOTFS)/gentoo-*inst* $(WORKING_ROOTFS)/haveged
+	sudo cp conf/kconfig $(WORKING_ROOTFS)/
 	[ -e $(WORKING_SQUASHFS) ] && sudo rm -f $(WORKING_SQUASHFS) || true
 	sudo mksquashfs $(WORKING_ROOTFS) $(WORKING_SQUASHFS)
 	sudo chown $(WHOAMI):$(WHOAMI) $(WORKING_SQUASHFS)

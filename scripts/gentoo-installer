@@ -1,7 +1,10 @@
 #!/usr/bin/env perl
 
 use strict;
+use warnings;
+
 use Getopt::Std;
+use Term::ReadKey;
 
 # This script should automate as much of the Gentoo installation as
 # possible. For reference, see
@@ -22,6 +25,37 @@ sub shell_or_die {
     my ($cmd, $eulogy) = @_;
     printf("\t\$ $cmd\n");
     system("$cmd") && die "[!] $eulogy";
+}
+
+sub getpass {
+    print "$@";
+    Term::ReadKey::ReadMode('noecho');
+    my $password = Term::ReadKey::ReadLine(0);
+    Term::ReadKey::ReadMode('normal');
+    print "\n";
+}
+
+sub getpass_confirm {
+    my $password = getpass("\t@_");
+    my $confirm_password = getpass("\tconfirm password: ");
+
+    if ($confirm_password eq $password) {
+	return $password;
+    }
+
+    print "[!] passwords did not match.\n";
+    getpass_confirm(@_);
+}
+
+sub encrypt_disk {
+    my $cryptdev = shift;
+    
+    my $disk_pass = getpass_confirm("disk encryption password: ");
+    shell_or_die("echo \"$disk_pass\" | cryptsetup luksFormat $cryptdev -",
+		 "cryptsetup failed");
+    sleep(1);
+    shell_or_die("echo \"$disk_pass\" | cryptsetup luksOpen $cryptdev lvm -",
+		 "failed to open crypt device");
 }
 
 # Partition the disks, encrypt the root drive, create the necessary
@@ -54,12 +88,7 @@ t
 8e
 w
 END
-    shell_or_die("echo \"$fdisk_cmd\" | fdisk $disk",
-		 "failed to partition disk");
-    shell_or_die("cryptsetup luksFormat $cryptdev",
-		 "cryptsetup failed");
-    shell_or_die("cryptsetup luksOpen $cryptdev lvm",
-		 "failed to open crypt device");
+    encrypt_disk($cryptdev);
     shell_or_die("mkfs.ext3 $bootdev");
     shell_or_die("pvcreate /dev/mapper/lvm", "failed to setup PV");
     shell_or_die("vgcreate vol0 /dev/mapper/lvm", "failed to set up VG");
@@ -162,7 +191,7 @@ sub main {
     } elsif (defined($opts{3}) && $opts{3}) {
 	print "[+] unpacking stage3\n";
 	my @stage3 = <"/mnt/livecd/stage3*hardened*.tar.bz2">;
-	length @stage3 || die "[!] couldn't find a suitable stage3";
+	length scalar(@stage3) || die "[!] couldn't find a suitable stage3";
 	my $stage3 = shift @stage3;
 	shell_or_die("tar xvjpf $stage3 --xattrs -C /mnt/gentoo",
 		     "failed to unpack stage3");
