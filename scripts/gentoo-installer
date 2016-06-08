@@ -172,7 +172,15 @@ sub main {
     print "[+] finalising base system\n";
     shell_or_die("cp /mnt/livecd/gentoo-postinstall /mnt/gentoo/usr/bin/gentoo-postinstall",
 		 "failed to copy post-install script");
-    shell_or_die("/mnt/gentoo/usr/bin/gentoo-postinstall",
+
+    my $inst_type = "";
+    if (defined($opts{s}) && length $opts{s}) {
+	$inst_type = "stage4";
+    } elsif (defined($opts{3}) && $opts{3}) {
+	$inst_type = "stage3";
+    }
+    
+    shell_or_die("/mnt/gentoo/usr/bin/gentoo-postinstall $inst_type",
 		 "post-installer failed");
 
 
