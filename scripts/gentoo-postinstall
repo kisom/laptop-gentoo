@@ -151,4 +151,4 @@ EOF
     echo "[+] done"
 }
 
-main
+main "$@"
