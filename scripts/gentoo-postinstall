@@ -103,7 +103,7 @@ main () {
     # and update the world
     sed -i -e 's/^USE="\(.\+\)"$/USE="\1 hardened ncurses cryptsetup"/'	\
 	/etc/portage/make.conf
-    emerge --ask --update --deep --newuse @world
+    emerge --update --deep --newuse @world
 
     # set up locales
     echo "America/Los_Angeles" > /etc/timezone

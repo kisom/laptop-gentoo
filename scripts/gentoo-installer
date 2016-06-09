@@ -4,7 +4,11 @@ use strict;
 use warnings;
 
 use Getopt::Std;
+use IO::Handle;
 use Term::ReadKey;
+
+# select((select(STDOUT), $| = 1)[0]);
+STDOUT->autoflush(1);
 
 # This script should automate as much of the Gentoo installation as
 # possible. For reference, see
@@ -28,15 +32,17 @@ sub shell_or_die {
 }
 
 sub getpass {
-    print "$@";
+    print "@_";
     Term::ReadKey::ReadMode('noecho');
-    my $password = Term::ReadKey::ReadLine(0);
+    chomp(my $password = Term::ReadKey::ReadLine(0));
     Term::ReadKey::ReadMode('normal');
     print "\n";
+    return $password;
 }
 
 sub getpass_confirm {
-    my $password = getpass("\t@_");
+    my $prompt = shift;
+    my $password = getpass("\t$prompt");
     my $confirm_password = getpass("\tconfirm password: ");
 
     if ($confirm_password eq $password) {
@@ -44,18 +50,23 @@ sub getpass_confirm {
     }
 
     print "[!] passwords did not match.\n";
-    getpass_confirm(@_);
+    getpass_confirm($prompt);
 }
 
 sub encrypt_disk {
     my $cryptdev = shift;
-    
+
+    print "[+] encrypting $cryptdev\n";
     my $disk_pass = getpass_confirm("disk encryption password: ");
-    shell_or_die("echo \"$disk_pass\" | cryptsetup luksFormat $cryptdev -",
-		 "cryptsetup failed");
-    sleep(1);
-    shell_or_die("echo \"$disk_pass\" | cryptsetup luksOpen $cryptdev lvm -",
-		 "failed to open crypt device");
+
+    # use system() to avoid printing the password to screen
+    print "\tcryptsetup -q luksFormat $cryptdev -\n";
+    system("echo -n \"$disk_pass\" | cryptsetup -q luksFormat $cryptdev -") &&
+	die "cryptsetup failed";
+    sleep(1); # hopefully stabilises the cryptsetup ioctl issue
+    print "\tcryptsetup -q luksOpen $cryptdev lvm -\n";    
+    system("echo -n \"$disk_pass\" | cryptsetup -q luksOpen $cryptdev lvm -") &&
+	die "failed to open crypt device";
 }
 
 # Partition the disks, encrypt the root drive, create the necessary
@@ -64,8 +75,8 @@ sub disk_setup {
     my $disk = shift;
     my $bootdev = $disk . "1";
     my $cryptdev = $disk . "2";
-    print "[+] boot device:  $bootdev\n";
-    print "[+] crypt device: $cryptdev\n";
+    print "\tboot device:  $bootdev\n";
+    print "\tcrypt device: $cryptdev\n";
 
     # The following are the commands to set up a 256M boot partition
     # and an LVM partition taking up the rest of the disk. I typed
@@ -88,6 +99,9 @@ t
 8e
 w
 END
+    shell_or_die("echo \"$fdisk_cmd\" | fdisk $disk",
+		 "failed to partition disk");
+
     encrypt_disk($cryptdev);
     shell_or_die("mkfs.ext3 $bootdev");
     shell_or_die("pvcreate /dev/mapper/lvm", "failed to setup PV");
@@ -166,12 +180,18 @@ sub setup_network {
 }
 
 sub main {
-    my %opts = {};
+    my %opts = (
+	3 => 0,             # 3: look for and unpack the stage3 tarball
+	d => '/dev/sda',    # d: specify the root device
+	i => '',            # i: network interface
+	n => 0,             # n: network is already setup
+	s => '',            # s: specify a root filesystem to unpack
+	w => 0,             # w: network interface is a wireless card
+    );
     getopts('3d:i:ns:w', \%opts);
 
-
     # 1. Set up networking.
-    if (defined($opts{n}) || !$opts{n}) {
+    if (defined($opts{n}) && !$opts{n}) {
 	setup_network($opts{i}, $opts{w});
     }
 
