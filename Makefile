@@ -306,7 +306,8 @@ upstream/linux-firmware.tar.bz2:
 	rm -rf linux-firmware
 
 # Building the rootfs involves copying over the firmware, stage3
-# tarball, and install script.
+# tarball, and install script. Also includes a copy of goat, which
+# is useful because the livecd doesn't have netcat.
 .PHONY: build-rootfs
 build-rootfs: $(WORKING_SQUASHFS)
 $(WORKING_SQUASHFS): $(WORKING) working-rootfs firmware
@@ -316,7 +317,7 @@ $(WORKING_SQUASHFS): $(WORKING) working-rootfs firmware
 		sudo patch -r -p1 < ../$(PATCHDIR)/$$patchfile ;	\
 	done
 	sudo cp upstream/linux-firmware.tar.bz2 $(WORKING_ROOTFS)/
-	sudo sh -c "xz -cdk upstream/haveged.xz > $(WORKING_ROOTFS)/haveged"
+	sudo sh -c "xz -cdk upstream/goat.xz > $(WORKING_ROOTFS)/goat"
 	sudo cp scripts/gentoo-installer $(WORKING_ROOTFS)/
 	sudo cp scripts/gentoo-postinstall $(WORKING_ROOTFS)/
 	sudo chmod +x $(WORKING_ROOTFS)/gentoo-*inst* $(WORKING_ROOTFS)/haveged

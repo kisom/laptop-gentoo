@@ -60,8 +60,8 @@ sub encrypt_disk {
     my $disk_pass = getpass_confirm("disk encryption password: ");
 
     # use system() to avoid printing the password to screen
-    print "\tcryptsetup -q luksFormat $cryptdev -\n";
-    system("echo -n \"$disk_pass\" | cryptsetup -q luksFormat $cryptdev -") &&
+    print "\tcryptsetup --use-urandom -q luksFormat $cryptdev -\n";
+    system("echo -n \"$disk_pass\" | cryptsetup --use-urandom -q luksFormat $cryptdev -") &&
 	die "cryptsetup failed";
     sleep(1); # hopefully stabilises the cryptsetup ioctl issue
     print "\tcryptsetup -q luksOpen $cryptdev lvm -\n";    

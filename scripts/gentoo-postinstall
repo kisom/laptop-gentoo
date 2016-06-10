@@ -3,6 +3,10 @@
 set -eu
 set -o pipefail
 
+######################
+# Utility functions. #
+######################
+
 die () {
     echo "[!] $1" > /dev/stderr
     exit 1
@@ -17,15 +21,34 @@ disk_uuid () {
 	eval $expvar="'$mntln'"
 }
 
-setup () {
-    # Set up portage and add host mounts.
-    
-    echo '[+] selecting mirrors'
-    mirrorselect -i -o >> /mnt/gentoo/etc/portage/make.conf
+eselect_find () {
+    module="$1"
+    target="$2"
+    retvar="$3"
+    [ -z "$module" -o -z "$target" ] &&
+	die "invalid eselect find: module=$module target=$target"
+    local n=$(eselect $1 list | grep "$target" | awk '{print $1}' |
+		  sed -e "s/\[\([0-9]\+\)\]/\1/")
+    eval $3="'$n'"
+}
 
-    echo '[+] setting up portage repos'
-    mkdir /mnt/gentoo/etc/portage/repos.conf
-    cp /mnt/gentoo/usr/share/portage/config/repos.conf /mnt/gentoo/etc/portage/repos.conf/gentoo.conf
+########################
+# Installation actions #
+########################
+
+setup () {
+    echo '[+] running pre-chroot setup'
+
+    if [ "$inst_type" = "stage3" ]
+    then
+	echo '[+] setting up portage'
+	echo '[+] selecting mirrors'
+	mirrorselect -i -o >> /mnt/gentoo/etc/portage/make.conf
+
+	echo '[+] setting up portage repos'
+	mkdir /mnt/gentoo/etc/portage/repos.conf
+	cp /mnt/gentoo/usr/share/portage/config/repos.conf /mnt/gentoo/etc/portage/repos.conf/gentoo.conf
+    fi
 
     echo '[+] stealing files from the live CD'
     cp -L /etc/resolv.conf /mnt/gentoo/etc/
@@ -38,16 +61,32 @@ setup () {
     [ -s /mnt/livecd/kconfig ] && cp /mnt/livecd/kconfig /mnt/gentoo/root/kconfig
 }
 
-eselect_find () {
-    module="$1"
-    target="$2"
-    retvar="$3"
-    [ -z "$module" -o -z "$target" ] &&
-	die "invalid eselect find: module=$module target=$target"
-    local n=$(eselect $1 list | grep "$target" | awk '{print $1}' |
-		  sed -e "s/\[\([0-9]\+\)\]/\1/")
-    eval $3="'$n'"
+set_profile () {
+    echo '[+] setting profile'
+    
+    # make sure the profile is right
+    eselect_find profile 'hardened/linux/amd64[^/]' hardened_profile
+    eselect profile set $hardened_profile
+
+    # and update the world
+    sed -i -e 's/^USE="\(.\+\)"$/USE="\1 hardened ncurses cryptsetup"/'	\
+	/etc/portage/make.conf
 }
+
+set_locale () {
+    echo '[+] setting locale'
+
+    # set up locales
+    echo "America/Los_Angeles" > /etc/timezone
+    emerge --config sys-libs/timezone-data
+    
+    echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && locale-gen
+
+    eselect_find locale en_US.utf8 locale_profile
+    eselect locale set $locale_profile
+    env-update
+}    
+
 
 build_kernel () {
    # time to set up the kernel
@@ -67,6 +106,19 @@ build_kernel () {
     genkernel --install --luks --lvm initramfs
 }
 
+config_setup () {
+    echo '[+] configuration setup'
+    [ ! -d /etc/conf.d ] && mkdir /etc/conf.d
+    read -p 'Hostname? ' NEWHOST
+    echo "hostname=\"$NEWHOST\"" > /etc/conf.d/hostname
+
+    echo "127.0.0.1 $hostname.local $hostname" > /etc/hosts
+    echo "::1 $hostname.local $hostname" > /etc/hosts
+
+    echo "[+] setting the root password"
+    passwd
+}
+
 # install tools into a stage3 install
 install_tools () {
     # certain tools *have* to be part of the base image.    
@@ -83,40 +135,11 @@ install_tools () {
 	   net-wireless/wicd
     ufw enable
 
-    emerge -v sys-boot/grub2
+    emerge -v sys-boot/grub
 }
 
-main () {
-    # The live CD isn't mounted in the chroot env. If it's mounted, we're
-    # still in the live CD environment and need to do some initial setup.
-    [ -d /mnt/livecd ] && setup && chroot /mnt/gentoo ${0#/mnt/gentoo} "$@"
-
-    inst_type="$1"
-    [ -z "$inst_type" ] && inst_type="stage3"
-    
-    emerge-webrsync
-
-    # make sure the profile is right
-    eselect_find profile 'hardened/linux/amd64[^/]' hardened_profile
-    eselect profile set $hardened_profile
-
-    # and update the world
-    sed -i -e 's/^USE="\(.\+\)"$/USE="\1 hardened ncurses cryptsetup"/'	\
-	/etc/portage/make.conf
-    emerge --update --deep --newuse @world
-
-    # set up locales
-    echo "America/Los_Angeles" > /etc/timezone
-    emerge --config sys-libs/timezone-data
-    
-    echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && locale-gen
-
-    eselect_find locale en_US.utf8 locale_profile
-    eselect locale set $locale_profile
-    env-update
-
-    [ "$inst_type" = "stage3" ] && build_kernel && install_tools
-
+gen_fstab () {
+    print '[+] generating fstab'
     disk_uuid / root_dev
     disk_uuid /var var_dev
     disk_uuid swap swap_dev
@@ -130,24 +153,39 @@ $bootdev	/boot	ext3	defaults	0	1
 $swapdev	none	swap	sw		1	1
 
 EOF
+}
 
-
-    echo '[+] configuration setup'
-    [ ! -d /etc/conf.d ] && mkdir /etc/conf.d
-    read -p 'Hostname? ' NEWHOST
-    echo "hostname=\"$NEWHOST\"" > /etc/conf.d/hostname
-
-    echo "127.0.0.1 $hostname.local $hostname" > /etc/hosts
-    echo "::1 $hostname.local $hostname" > /etc/hosts
-
-    echo "[+] setting the root password"
-    passwd
-
+install_grub () {
     echo "[+] installing grub"
     read -p "Boot device: " bootdev
     grub2-install /dev/$bootdev
     grub2-mkconfig -o /boot/grub/grub.cfg
+}
 
+main () {
+    inst_type="$1"
+    [ -z "$inst_type" ] && inst_type="stage3"
+
+    # This allows the script to be sourced without running anything.    
+    [ "$inst_type" = "source" ] && exit 0
+    
+    # The live CD isn't mounted in the chroot env. If it's mounted, we're
+    # still in the live CD environment and need to do some initial setup.
+    [ -d /mnt/livecd ] && setup && chroot /mnt/gentoo ${0#/mnt/gentoo} "$@"
+
+    # webrsync should always be done.
+    emerge-webrsync
+
+    [ "$inst_type" = "stage3" ] && set_profile
+
+    emerge --update --deep --newuse @world
+
+    [ "$inst_type" = "stage3" ] && build_kernel && install_tools
+
+    gen_fstab
+    config_setup
+    install_grub
+    
     echo "[+] done"
 }
 

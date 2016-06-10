@@ -11,3 +11,14 @@ Sage internet advice: don't read the comments, particularly if you
 have Opinions on things.
 
 For the current status, see RELEASE.
+
+The goal of this is to facilitate setting up the absolute minimum
+Linux system that can be turned over to Salt to set up my work
+desk/laptop environment. The specific goals that I want out of this
+system are detailed in the Makefile, but the basic requirements are
+
+  1. grsec kernel
+  2. minimal base image (just enough to let Salt take over)
+  3. no systemd
+  4. standard Unix tooling
+  5. Salt management of the actual system
