@@ -160,9 +160,7 @@ install_grub () {
     echo "[+] installing grub"
     echo "GRUB_CRYPTODISK_ENABLE=y" >> /etc/default/grub
     sed -e 's/^GRUB_CMDLINE_LINUX="\(.*\)"$/GRUB_CMDLINE_LINUX="\1 dolvm"/' /etc/default/grub
-    sed -i -e 's/^GRUB_CMDLINE_LINUX="(.*
-    read -p "Boot device: " bootdev
-    bootdev="${bootdev#/dev/}"
+    bootdev="$(mount | grep /boot | awk '{print $1}' | sed -e 's/[0-9]$//')"
     grub2-install /dev/$bootdev
     grub2-mkconfig -o /boot/grub/grub.cfg
 }
@@ -188,8 +186,12 @@ main () {
     echo "[+] done"
 }
 
-inst_type="$1"
-[ -z "$inst_type" ] && inst_type="stage3"
+if [ -z "$@" ]
+then
+    inst_type="stage3"
+else
+    inst_type="$1"
+fi
 
 # This allows the script to be sourced without running anything.    
 [ "$inst_type" = "source" ] && exit 0
