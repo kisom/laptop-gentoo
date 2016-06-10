@@ -16,8 +16,7 @@ disk_uuid () {
 	mntloc=" $1 "
 	expvar="$2"
 
-	local mntln="$(mount | grep "$mntloc" | awk '{print $1}')"
-	mntln="$(blkid | grep $mntln | sed -e 's/.*UUID=\"\([a-f0-9-]\+\)\".*/\1/')"
+	mntln="$(blkid | grep $mntloc | sed -e 's/.*UUID=\"\([a-f0-9-]\+\)\".*/\1/')"
 	eval $expvar="'$mntln'"
 }
 
@@ -139,11 +138,13 @@ install_tools () {
 }
 
 gen_fstab () {
-    print '[+] generating fstab'
-    disk_uuid / root_dev
-    disk_uuid /var var_dev
-    disk_uuid swap swap_dev
-    disk_uuid /boot boot_dev
+    echo '[+] generating fstab'
+    disk_uuid / rootdev
+    disk_uuid /var vardev
+    disk_uuid swap swapdev
+
+    bootloc="$(mount | grep /boot | awk '{print $1}')"
+    disk_uuid $bootloc bootdev
 
     cat <<EOF > /etc/fstab
 # <file system> <mount point>   <type>  <options>       <dump>  <pass>
@@ -158,17 +159,12 @@ EOF
 install_grub () {
     echo "[+] installing grub"
     read -p "Boot device: " bootdev
+    bootdev="${bootdev#/dev/}"
     grub2-install /dev/$bootdev
     grub2-mkconfig -o /boot/grub/grub.cfg
 }
 
 main () {
-    inst_type="$1"
-    [ -z "$inst_type" ] && inst_type="stage3"
-
-    # This allows the script to be sourced without running anything.    
-    [ "$inst_type" = "source" ] && exit 0
-    
     # The live CD isn't mounted in the chroot env. If it's mounted, we're
     # still in the live CD environment and need to do some initial setup.
     [ -d /mnt/livecd ] && setup && chroot /mnt/gentoo ${0#/mnt/gentoo} "$@"
@@ -188,5 +184,11 @@ main () {
     
     echo "[+] done"
 }
+
+inst_type="$1"
+[ -z "$inst_type" ] && inst_type="stage3"
+
+# This allows the script to be sourced without running anything.    
+[ "$inst_type" = "source" ] && exit 0
 
 main "$@"
