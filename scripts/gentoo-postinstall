@@ -124,7 +124,7 @@ install_tools () {
     # certain tools *have* to be part of the base image.    
     emerge -v sys-apps/paxctl sys-fs/cryptsetup sys-kernel/linux-firmware
 
-    emerge -v app-admin/syslogkd sys-process/cronie
+    emerge -v app-admin/sysklogd sys-process/cronie
     rc-update add sysklogd default
     rc-update add cronie default
 
@@ -132,7 +132,7 @@ install_tools () {
 
     # network tools
     emerge -v net-misc/dhcpcd net-firewall/ufw net-wireless/wpa_supplicant \
-	   net-wireless/wicd
+	   net-misc/wicd
     ufw enable
 
     emerge -v sys-boot/grub
