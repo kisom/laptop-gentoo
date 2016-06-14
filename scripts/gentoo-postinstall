@@ -16,7 +16,7 @@ disk_uuid () {
 	mntloc=" $1 "
 	expvar="$2"
 
-	mntln="$(blkid | grep $mntloc | sed -e 's/.*UUID=\"\([a-f0-9-]\+\)\".*/\1/')"
+	mntln="$(blkid | grep $mntloc | sed -e 's/.*\WUUID=\"\([a-f0-9-]\+\)\".*/\1/')"
 	eval $expvar="'$mntln'"
 }
 
@@ -111,8 +111,8 @@ config_setup () {
     read -p 'Hostname? ' NEWHOST
     echo "hostname=\"$NEWHOST\"" > /etc/conf.d/hostname
 
-    echo "127.0.0.1 $hostname.local $hostname" > /etc/hosts
-    echo "::1 $hostname.local $hostname" > /etc/hosts
+    echo "127.0.0.1 $NEWHOST.local $NEWHOST" > /etc/hosts
+    echo "::1 $NEWHOST.local $NEWHOST" > /etc/hosts
 
     echo "[+] setting the root password"
     passwd
@@ -139,9 +139,9 @@ install_tools () {
 
 gen_fstab () {
     echo '[+] generating fstab'
-    disk_uuid / rootdev
-    disk_uuid /var vardev
-    disk_uuid swap swapdev
+    disk_uuid vol0-lv_root rootdev
+    disk_uuid vol0-lv_var vardev
+    disk_uuid vol0-lv_swap swapdev
 
     bootloc="$(mount | grep /boot | awk '{print $1}')"
     disk_uuid $bootloc bootdev
@@ -158,10 +158,19 @@ EOF
 
 install_grub () {
     echo "[+] installing grub"
-    echo "GRUB_CRYPTODISK_ENABLE=y" >> /etc/default/grub
-    sed -e 's/^GRUB_CMDLINE_LINUX="\(.*\)"$/GRUB_CMDLINE_LINUX="\1 dolvm"/' /etc/default/grub
+
     bootdev="$(mount | grep /boot | awk '{print $1}' | sed -e 's/[0-9]$//')"
-    grub2-install /dev/$bootdev
+    disk_uuid "${bootdev}2" crypt_uuid
+    echo "\tboot device: $bootdev"
+    echo "\tcrypt root:  $crypt_uuid"
+    
+    echo "GRUB_CRYPTODISK_ENABLE=y" >> /etc/default/grub
+    
+
+    local cmdline="dolvm crypt_root=UUID=$crypt_uuid root=/dev/mapper/vol0-lv_root"
+    sed -i -e "s,^GRUB_CMDLINE_LINUX=\"\(.*\)\"$,GRUB_CMDLINE_LINUX=\"\1 $cmdline\"," /etc/default/grub
+
+    grub2-install $bootdev
     grub2-mkconfig -o /boot/grub/grub.cfg
 }
 
@@ -188,7 +197,7 @@ main () {
 
 if [ -z "$@" ]
 then
-    inst_type="stage3"
+    exit 0 
 else
     inst_type="$1"
 fi
